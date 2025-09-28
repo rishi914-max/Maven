@@ -1,0 +1,41 @@
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven-rishi'
+        jdk 'jdk17'
+    }
+
+    environment {
+        APP_NAME = "maven-web-app"
+        TOMCAT_URL = "http://localhost:8080"
+    }
+
+    stages {
+        stage('Clone Code') {
+            steps {
+                git branch: 'main', url: 'https://github.com/rishi914-max/maven.git'
+            }
+        }
+
+        stage('Build with Maven') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+        stage('Deploy to Tomcat') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'tomcat-cred', usernameVariable: 'TOMCAT_USER', passwordVariable: 'TOMCAT_PASS')]) {
+                    sh '''
+                    WAR_FILE=$(ls target/*.war | head -n 1)
+                    echo "Deploying $WAR_FILE to Tomcat..."
+
+                    curl -s -u $TOMCAT_USER:$TOMCAT_PASS "$TOMCAT_URL/manager/text/undeploy?path=/$APP_NAME" || true
+                    curl -s -u $TOMCAT_USER:$TOMCAT_PASS -T "$WAR_FILE" "$TOMCAT_URL/manager/text/deploy?path=/$APP_NAME&update=true"
+                    '''
+                }
+            }
+        }
+    }
+}
